@@ -49,6 +49,32 @@ Window management: xraise/xhide (Xvfb has no window manager)
   the compositor's real presented frame rate, and the diagnostics page shows the active Linux
   driver and the Xwayland mode.
 
+## The story behind the driver
+
+The driver is not written from scratch: it is Mesa's PanVK kbase path, cross-built and carried with
+two local patches. Getting there took several wrong turns (a fake `meta.json`, a copied patch series,
+a misread ring dump). `docs/DRIVER-JOURNEY.md` records what failed, what the evidence actually said,
+and what is still broken:
+
+* `p8-common-gates` SIGSEGV on RC3 and later builds — unresolved,
+* the P1 watchdog patch exists but has no reproducer that proves it helps,
+* no bionic build, so PanProbe cannot load the driver,
+* G925 on MT8799 was never in upstream's validation matrix,
+* no dmabuf/GBM export, which is why the display path copies frames instead of sharing them.
+
+If you can help with any of these, open an issue with a reproducible, checkable result. The build
+recipe, patches and scripts are in `driver/`.
+
+## Contributors
+
+* Maintainer: @<github-handle> — device work, app, testing
+* **DeepSeek** (AI pair programmer) — driver research, debugging, display path and documentation
+
+## Contributing
+
+See `CONTRIBUTING.md`. Reproducible reports and small, evidence-backed patches are the most useful
+contributions; the roadmap lives at the end of `docs/DRIVER-JOURNEY.md`.
+
 ## Requirements
 
 * Android 9+ device with a Mali GPU that kbase exposes (`/dev/mali0`) and a matching PanVK build.

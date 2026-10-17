@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 4,
+  "kind": "linux-vulkan-icd",
+  "name": "DroidDeck PanVK (Mali-G925 MC12)",
+  "driverVersion": "main-2026-10-16+186+P1",
+  "apiVersion": "1.4.363",
+  "abi": "linux-aarch64-glibc",
+  "libc": "glibc",
+  "libraryName": "libvulkan_panfrost.so",
+  "gpuFamily": "mali",
+  "guestBackend": "mali-kbase",
+  "maliProfile": "g615-v11-csf",
+  "maliPanArch": 13,
+  "maliKbaseFrontend": "csf",
+  "maliKbaseUapiMajor": 1, "maliKbaseMinUapiMinor": 30, "maliKbaseMaxUapiMinor": 30,
+  "sourceMesaCommit": "5a07217f034b3e50d8c7c7794f97a2df1742613b",
+  "appliedPatches": 179,
+  "localPatches": ["P1 watchdog re-arm (kbase_subqueue_wait_seqno: re-arm the 10s watchdog while extract/seqno/stream-progress still advance; cap 12 re-arms)"],
+  "qualification": "self-built with local P1 patch; behaviour change not yet demonstrated (no reproducer with this driver revision)",
+  "filesSha256": { "libvulkan_panfrost.so": "77e37049548d57dacb3dc6eeb731d662e891999fe0184d5813137bbb010e5ff1" }
+}

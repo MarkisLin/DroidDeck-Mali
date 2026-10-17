@@ -1,0 +1,185 @@
+diff --git a/src/panfrost/vulkan/panvk_instance.c b/src/panfrost/vulkan/panvk_instance.c
+index e87ee73..1b75e26 100644
+--- a/src/panfrost/vulkan/panvk_instance.c
++++ b/src/panfrost/vulkan/panvk_instance.c
+@@ -16,12 +16,20 @@
+ #include "util/os_misc.h"
+ #include "util/u_call_once.h"
+ 
++#if defined(HAVE_PAN_KMOD_KBASE)
++#include <limits.h>
++#include <stdio.h>
++#include <unistd.h>
++#endif
++
+ #include "vk_alloc.h"
+ #include "vk_log.h"
+ 
+ #include "pan_trace.h"
+ 
+ #include "panvk_entrypoints.h"
++#include <string.h>
++
+ #include "panvk_instance.h"
+ #include "panvk_macros.h"
+ #include "panvk_physical_device.h"
+@@ -47,13 +55,20 @@ static const struct debug_control panvk_debug_options[] = {
+    {"force_simultaneous", PANVK_DEBUG_FORCE_SIMULTANEOUS},
+    {"implicit_others_inv", PANVK_DEBUG_IMPLICIT_OTHERS_INV},
+    {"force_blackhole", PANVK_DEBUG_FORCE_BLACKHOLE},
+-   {"wsi_afbc", PANVK_DEBUG_WSI_AFBC},
++   {"wsi_no_afbc", PANVK_DEBUG_WSI_NO_AFBC},
+    {"no_wb_mmap", PANVK_DEBUG_NO_WB_MMAP},
+    {"no_user_mmap_sync", PANVK_DEBUG_NO_USER_MMAP_SYNC},
+    {"cached_before_coherent", PANVK_DEBUG_CACHED_BEFORE_COHERENT},
+    {"no_extended_va_range", PANVK_DEBUG_NO_EXTENDED_VA_RANGE},
+    {"hsr_prepass", PANVK_DEBUG_HSR_PREPASS},
+    {"no_crc", PANVK_DEBUG_NO_CRC},
++   {"kbase_diag", PANVK_DEBUG_KBASE_DIAG},
++   {"gpu_prerast", PANVK_DEBUG_GPU_PRERAST},
++   {"no_bc_emul", PANVK_DEBUG_NO_BC_EMUL},
++   {"no_gs", PANVK_DEBUG_NO_GS},
++   {"robust_ssbo_vec", PANVK_DEBUG_ROBUST_SSBO_VEC},
++   {"bc_compute", PANVK_DEBUG_BC_COMPUTE},
++   {"bc_wide", PANVK_DEBUG_BC_WIDE},
+    {NULL, 0},
+ };
+ 
+@@ -105,6 +120,7 @@ static const struct vk_instance_extension_table panvk_instance_extensions = {
+    .KHR_surface = true,
+    .KHR_surface_maintenance1 = true,
+    .EXT_surface_maintenance1 = true,
++   .EXT_swapchain_colorspace = true,
+ #endif
+ #ifdef VK_USE_PLATFORM_DISPLAY_KHR
+    .KHR_display = true,
+@@ -121,6 +137,9 @@ static const struct vk_instance_extension_table panvk_instance_extensions = {
+ #ifdef VK_USE_PLATFORM_XLIB_KHR
+    .KHR_xlib_surface = true,
+ #endif
++#ifdef VK_USE_PLATFORM_ANDROID_KHR
++   .KHR_android_surface = true,
++#endif
+ #ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
+    .EXT_acquire_xlib_display = true,
+ #endif
+@@ -159,6 +178,69 @@ panvk_physical_device_try_create(struct vk_instance *vk_instance,
+    return VK_SUCCESS;
+ }
+ 
++static VkResult
++panvk_enumerate_physical_devices(struct vk_instance *vk_instance)
++{
++   struct panvk_instance *instance =
++      container_of(vk_instance, struct panvk_instance, vk);
++
++   /* Enumerate DRM render nodes (panfrost / panthor). */
++   drmDevicePtr drm_devices[256];
++   int max_drm = drmGetDevices2(0, drm_devices, ARRAY_SIZE(drm_devices));
++
++   if (max_drm > 0) {
++      for (int i = 0; i < max_drm; i++) {
++         struct vk_physical_device *pdevice = NULL;
++         VkResult result =
++            panvk_physical_device_try_create(vk_instance, drm_devices[i],
++                                             &pdevice);
++         if (result == VK_ERROR_INCOMPATIBLE_DRIVER)
++            continue;
++         if (result != VK_SUCCESS) {
++            drmFreeDevices(drm_devices, max_drm);
++            return result;
++         }
++         list_addtail(&pdevice->link, &vk_instance->physical_devices.list);
++      }
++      drmFreeDevices(drm_devices, max_drm);
++   }
++
++#if defined(HAVE_PAN_KMOD_KBASE)
++   /* Enumerate kbase (Mali) non-DRM nodes. */
++   for (int i = 0; i < PAN_KBASE_MAX_NODES; i++) {
++      char path[PATH_MAX];
++      snprintf(path, sizeof(path), "/dev/mali%d", i);
++
++      /* Missing optional nodes are normal and should not emit loader
++       * warnings.  Existing nodes still go through full initialization so
++       * permission and uAPI failures remain visible. */
++      if (access(path, F_OK) != 0)
++         continue;
++
++      struct panvk_physical_device *device =
++         vk_zalloc(&instance->vk.alloc, sizeof(*device), 8,
++                   VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
++      if (!device)
++         return panvk_error(instance, VK_ERROR_OUT_OF_HOST_MEMORY);
++
++      VkResult result =
++         panvk_physical_device_init_kbase(device, instance, path);
++      if (result != VK_SUCCESS) {
++         vk_free(&instance->vk.alloc, device);
++         /* No device at this path; try the next node. */
++         if (result == VK_ERROR_INCOMPATIBLE_DRIVER)
++            continue;
++         /* A real failure; stop enumeration. */
++         return result;
++      }
++
++      list_addtail(&device->vk.link, &vk_instance->physical_devices.list);
++   }
++#endif /* HAVE_PAN_KMOD_KBASE */
++
++   return VK_SUCCESS;
++}
++
+ static void
+ panvk_destroy_physical_device(struct vk_physical_device *device)
+ {
+@@ -258,8 +340,8 @@ panvk_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
+       .priv = &instance->vk.alloc,
+    };
+ 
+-   instance->vk.physical_devices.try_create_for_drm =
+-      panvk_physical_device_try_create;
++   instance->vk.physical_devices.enumerate =
++      panvk_enumerate_physical_devices;
+    instance->vk.physical_devices.destroy = panvk_destroy_physical_device;
+ 
+    if (PANVK_DEBUG(STARTUP))
+@@ -284,10 +366,12 @@ panvk_DestroyInstance(VkInstance _instance,
+    if (!instance)
+       return;
+ 
++   fprintf(stderr, "PANDBG DestroyInstance-enter\n"); fflush(stderr);
+    driDestroyOptionCache(&instance->drirc.options);
+    driDestroyOptionInfo(&instance->drirc.available_options);
+ 
+    vk_instance_finish(&instance->vk);
++   fprintf(stderr, "PANDBG DestroyInstance-after-vk_instance_finish\n"); fflush(stderr);
+    vk_free(&instance->vk.alloc, instance);
+ }
+ 
+@@ -315,6 +399,25 @@ PFN_vkVoidFunction
+ panvk_GetInstanceProcAddr(VkInstance _instance, const char *pName)
+ {
+    VK_FROM_HANDLE(panvk_instance, instance, _instance);
++
++   /* Vulkan 1.4 promoted these commands to core, but panvk implements them
++    * under their VK_KHR_maintenance6 spellings. Applications that follow the
++    * 1.4 spec ask for the core name and would otherwise get NULL. Map the
++    * core spelling onto the implementation that exists. */
++   static const struct {
++      const char *core;
++      const char *alias;
++   } promoted_to_khr[] = {
++      {"vkCmdBindDescriptorSets2", "vkCmdBindDescriptorSets2KHR"},
++      {"vkCmdPushConstants2", "vkCmdPushConstants2KHR"},
++   };
++   for (unsigned i = 0; i < ARRAY_SIZE(promoted_to_khr); i++) {
++      if (strcmp(pName, promoted_to_khr[i].core) == 0) {
++         pName = promoted_to_khr[i].alias;
++         break;
++      }
++   }
++
+    return vk_instance_get_proc_addr(&instance->vk, &panvk_instance_entrypoints,
+                                     pName);
+ }
