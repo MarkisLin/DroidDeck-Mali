@@ -98,7 +98,7 @@ Any platform: `./gradlew :app:assembleDebug`
 
 ## Contributors
 
-* Maintainer: @<github-handle> — device work, app, testing
+* Maintainer: **Markis Lin** — device work, app, testing
 * **DeepSeek** (AI pair programmer) — driver research, debugging, display path, documentation
 
 ## Contributing

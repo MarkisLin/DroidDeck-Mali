@@ -97,7 +97,7 @@ Windows：`powershell -File tools/release/build-mt8799.ps1 -Project . -Log build
 
 ## 贡献者
 
-* 维护者：@<github-handle> —— 设备上的工作、应用、测试
+* 维护者：**Markis Lin** —— 设备上的工作、应用、测试
 * **DeepSeek**（AI 结对编程）—— 驱动研究、调试、显示链路、文档
 
 ## 参与贡献
