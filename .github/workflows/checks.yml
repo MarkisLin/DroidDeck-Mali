@@ -1,0 +1,40 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JSON files parse
+        run: |
+          for f in driver/meta/*.json driver/profile/*.json; do
+            echo "checking $f"
+            python3 -m json.tool "$f" > /dev/null
+          done
+
+      - name: Patches stay LF (git apply needs it)
+        run: |
+          if grep -rlI $'\r' driver/patches/*.patch; then
+            echo "patch files contain CRLF"
+            exit 1
+          fi
+
+      - name: Driver package layout is complete
+        run: |
+          test -f driver/patches/p1-watchdog-rearm.patch
+          test -f driver/patches/p2-core-command-aliases.patch
+          test -f driver/profile/g925-v13-csf-profile.json
+          test -f driver/meta/main186_p1.json
+
+      - name: README links that must exist
+        run: |
+          for f in README.md README.zh-CN.md NOTICE.md CONTRIBUTING.md CONTRIBUTORS.md \
+                   CODE_OF_CONDUCT.md SECURITY.md docs/DRIVER.md driver/README.md; do
+            test -f "$f" || { echo "missing $f"; exit 1; }
+          done
