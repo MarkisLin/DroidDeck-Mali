@@ -1,17 +1,15 @@
 # 基于红米 K Pad（天玑 9400+ / MT8799）的 DroidDeck 支持开发
 
-**已实现初步运行目标：把 SteamOS 跑在联发科 Mali 平板上。**
+**当前状态：已实现初步运行目标**——Steam 大屏界面可在平板上运行，Windows 游戏可从库中启动并出
+画面，触控/键盘/手柄可进入游戏。
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-这是 [DroidDeck](https://github.com/Droid-Deck/DroidDeck) 的一个分支，开发设备是 **红米 K Pad
-（25079RPDCC）**：SoC **MT8799 / 天玑 9400+**，GPU **Mali-G925-Immortalis MC12**（`0xd8300015`，
-pan_arch 13，kbase CSF UAPI 1.30），Android 16，bootloader 锁定，**无 root**。
+这是 [DroidDeck](https://github.com/Droid-Deck/DroidDeck) 的分支，面向 **红米 K Pad（25079RPDCC）**：
+SoC **MT8799 / 天玑 9400+**，GPU **Mali-G925-Immortalis MC12**（`0xd8300015`，pan_arch 13，
+kbase CSF UAPI 1.30），Android 16，bootloader 锁定，无 root。
 
-目前达到的阶段：Steam 大屏界面（Big Picture）能在平板上运行，Windows 游戏能从库中启动并出画面，
-触控/键盘/手柄能进入游戏。项目仍是实验性的，离"完善"还很远——缺点列在下面。
-
-> 与 Valve、联发科、上游 DroidDeck 均无隶属关系。
+> 与 Valve、联发科、上游 DroidDeck 项目均无隶属关系。
 
 ## 下载
 
@@ -21,19 +19,14 @@ pan_arch 13，kbase CSF UAPI 1.30），Android 16，bootloader 锁定，**无 ro
 | **APK** | [Releases](../../releases) → `DroidDeck-KPad-0.4.0-sl1-debug.apk` |
 | **驱动** | [Releases](../../releases) → `DroidDeck-PanVK-G925-main186-p1.zip` |
 
-APK 使用 debug 签名（没有发布 release 密钥）；如果设备上已有不同签名的版本，请先卸载再装。驱动包就是
-**组件 → GPU 驱动 → 导入 .zip** 需要的格式（`libvulkan_panfrost.so` + `icd.json` + `meta.json`）。
+APK 为 debug 签名；若设备上已安装不同签名的版本，请先卸载。驱动包即 **组件 → GPU 驱动 →
+导入 .zip** 所接受的格式。
 
-## 为什么需要一套独立的显示链路
+## 显示链路
 
-无 root 时来宾拿不到 DRM render node：有 `/dev/mali0`，但没有 `/dev/dri/renderD128`。后果是：
-
-* Xwayland 的 glamor 需要 EGL + GBM + render node → 没有 GLX → Wine 建不出窗口 → Steam 的
-  VGUI 直接断言崩溃；
-* Chromium/CEF 走 Wayland 需要在 surface 上建 EGL 上下文 → 来宾只有 surfaceless 平台 →
-  CEF 永远不提交 buffer。
-
-最终跑通的链路：
+无 root 时没有 DRM render node：来宾有 `/dev/mali0`，但没有 `/dev/dri/renderD128`。
+Xwayland 的 glamor 需要 EGL + GBM + render node，Chromium/CEF 需要在 surface 上创建 EGL 上下文，
+两者都不可用。当前实现把画面渲染到软件 X 服务器，再由 GPU 合成器呈现：
 
 ```
 Steam / Windows 游戏（Proton ARM64 → Wine → FEX → DXVK）
@@ -43,34 +36,52 @@ Steam / Windows 游戏（Proton ARM64 → Wine → FEX → DXVK）
   → SurfaceView
 
 输入：合成器 wl_pointer/wl_keyboard → xpresent → XTEST → Xvfb → Steam/游戏
-窗口管理：xraise/xhide（Xvfb 没有窗口管理器）
+窗口管理：xraise/xhide（Xvfb 无窗口管理器）
 ```
 
-游戏与 Steam 客户端留在**同一个显示**上（`BL_XWAYLAND_COUNT=1`），这样 Steam 的覆盖层、焦点和
-手柄路由都发生在同一个 X 服务器里——这是之前"画面切了但手柄还留在大屏"的根因。
+Steam 客户端与游戏共用同一个显示（`BL_XWAYLAND_COUNT=1`），覆盖层、焦点与手柄路由因此保持在同一个
+X 服务器内。
 
-## 驱动是怎么写出来的
+## 驱动实现
 
-驱动并不是从零写的：它是 Mesa 的 PanVK kbase 路径，在 WSL2 里交叉编译，套 179 个上游补丁 + 两个
-本地补丁（看门狗续期、Vulkan 1.4 核心命令别名）。
+运行时驱动基于 Mesa 的 PanVK kbase 路径，使用 Mesa `5a07217f` 与上游 `csf-v11` 补丁集（179 个），
+并附加两个本地补丁：
 
-但第一版走过弯路，而且很有教育意义：手写 `meta.json` 冒充正确的 GPU 身份、照抄补丁族、把没开插桩的
-`marks 0x0` 当成"固件没开始执行"。完整过程、错误、证据和教训写在
-[docs/DRIVER-JOURNEY.md](docs/DRIVER-JOURNEY.md)，构建方法在 [driver/](driver/)。
+* **子队列超时保护**——kbase 在子队列 10 秒无进展时判定丢失；补丁在 `extract`/`seqno`/
+  `stream_progress` 仍在推进时延长该判定窗口（有上限）。
+* **Vulkan 1.4 核心命令别名**——把 `vkCmdBindDescriptorSets2`、`vkCmdPushConstants2` 导出为 KHR
+  入口点的别名。
 
-## 已知缺点（诚实清单）
+构建步骤、补丁说明、验证方法与工具链见 [docs/DRIVER.md](docs/DRIVER.md)，源码在
+[driver/](driver/)。
 
-* `p8-common-gates` 在 RC3 及之后的构建上 SIGSEGV——**尚未定位**；
-* P1 看门狗补丁没有复现器能证明它有用；
-* 没有 bionic 构建，PanProbe 无法在 Android 进程里加载这个驱动；
-* G925 在 MT8799 上的组合从未进入上游的验证矩阵；
-* 没有 dmabuf/GBM 导出，所以显示只能拷贝帧，不能零拷贝共享；
-* Steam 的 CEF 是软件光栅：界面约 13–16 fps（呈现器本身约 59 fps，XDamage 省掉约 80% 拷贝）；
-* 游戏与 Steam 客户端共用一个 Xvfb，窗口摆放靠我们自己的最小窗口管理器。
+## 开发配套工具
+
+| 工具 | 位置 | 用途 |
+|---|---|---|
+| 驱动构建脚本 | `driver/build/00-env.sh` … `40b-verify.sh` | 工具链、打补丁、交叉编译、ELF/符号校验 |
+| 测试构建 | `driver/build/60-build-tests.sh`、`63-build-all-tests.sh` | 编译 Vulkan 测试程序 |
+| profile 与元数据 | `driver/profile/`、`driver/meta/` | GPU profile 与驱动包元数据 |
+| APK 构建 | `tools/release/build-mt8799.ps1` | Windows 下构建 APK |
+| 来宾脚本哈希 | `tools/release/runtime_inputs.py` | 修改 `tools/linuxfs/overlay/**` 后记录 `runtime-inputs.json` |
+| 呈现器 | 来宾 `/root/xpresent` | Xvfb 帧缓冲 → Wayland surface |
+| 窗口控制 | 来宾 `/root/xraise`、`/root/xhide` | 置顶/切换与隐藏/显示 Steam 界面 |
+| 会话日志 | `files/logs/<session>/` | `session.log`、`wayland.log`、`xpresent.out` |
+
+## 当前局限
+
+* **性能偏低**：Steam 界面约 13–16 fps，游戏在这条路径上尚未做性能优化，帧生成与拷贝路径仍有
+  优化空间。
+* Steam 的 CEF 走软件光栅，是界面帧率偏低的主要原因。
+* `p8-common-gates` 在近期构建上出现 SIGSEGV，尚未定位。
+* 没有 bionic 构建，PanProbe 无法在 Android 进程内加载该驱动。
+* 没有 dmabuf/GBM 导出，显示链路只能拷贝帧，无法零拷贝共享。
+* G925 在 MT8799 上的组合不在上游验证矩阵内。
+* 游戏与 Steam 客户端共用一个 Xvfb，窗口摆放依赖项目自带的最小窗口管理器。
 
 ## 构建
 
-需要 JDK 17、Android SDK（compileSdk 34）、NDK 30。改动 `tools/linuxfs/overlay/**` 之后：
+需要 JDK 17、Android SDK（compileSdk 34）、NDK 30。修改来宾脚本后：
 
 ```bash
 python3 tools/release/runtime_inputs.py record
@@ -82,8 +93,8 @@ Windows：`powershell -File tools/release/build-mt8799.ps1 -Project . -Log build
 ## 安装
 
 1. 安装 APK，授予存储权限；
-2. **组件 → GPU 驱动 → 导入 .zip** 选择驱动包（运行时驱动）；
-3. 在 `Android/data/dev.hayash1.steamoslite/files/droiddeck-env` 里写：
+2. **组件 → GPU 驱动 → 导入 .zip**，选择驱动包（运行时驱动）；
+3. 在 `Android/data/dev.hayash1.steamoslite/files/droiddeck-env` 写入：
 
    ```
    MESA_LOG=android,file
@@ -97,15 +108,15 @@ Windows：`powershell -File tools/release/build-mt8799.ps1 -Project . -Log build
 
 ## 贡献者
 
-* 维护者：**Markis Lin** —— 设备上的工作、应用、测试
+* 维护者：**Markis Lin** —— 设备适配、应用、测试
 * **DeepSeek**（AI 结对编程）—— 驱动研究、调试、显示链路、文档
 
 ## 参与贡献
 
-欢迎带**可核对判据**的复现报告。规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，待办清单在
-[docs/DRIVER-JOURNEY.md](docs/DRIVER-JOURNEY.md) 末尾。
+欢迎带可核对证据的复现报告。规则见 [CONTRIBUTING.md](CONTRIBUTING.md)，待办项见
+[docs/DRIVER.md](docs/DRIVER.md) 末尾。
 
 ## 许可
 
-GPL-3.0（继承自 DroidDeck）；第三方组件见 [NOTICE.md](NOTICE.md)。Steam 与 Proton 归 Valve
-所有，本项目不打包它们。
+GPL-3.0，继承自 DroidDeck。第三方组件见 [NOTICE.md](NOTICE.md)。Steam 与 Proton 归 Valve 所有，
+本项目不打包它们。
