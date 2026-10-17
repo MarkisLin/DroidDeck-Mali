@@ -11,6 +11,8 @@ kbase CSF UAPI 1.30），Android 16，bootloader 锁定，无 root。
 
 > 与 Valve、联发科、上游 DroidDeck 项目均无隶属关系。
 
+<p align="center"><img src="docs/media/steam-big-picture.jpg" alt="Steam 大屏界面在红米 K Pad 上运行" width="80%"></p>
+
 ## 下载
 
 | 内容 | 位置 |

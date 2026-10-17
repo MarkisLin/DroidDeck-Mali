@@ -11,6 +11,8 @@ pan_arch 13, kbase CSF UAPI 1.30), Android 16, locked bootloader, no root.
 
 > Not affiliated with Valve, MediaTek, or the upstream DroidDeck project.
 
+<p align="center"><img src="docs/media/steam-big-picture.jpg" alt="Steam Big Picture running on the Redmi K Pad" width="80%"></p>
+
 ## Download
 
 | What | Where |

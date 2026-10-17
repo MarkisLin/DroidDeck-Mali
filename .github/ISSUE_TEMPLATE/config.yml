@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安装与使用问题 / Installation and usage
+    url: https://github.com/MarkisLin/Droiddeck-mali/blob/main/README.zh-CN.md
+    about: 先读中英文 README（安装步骤、驱动导入、当前局限）。Read the README before opening an issue.
