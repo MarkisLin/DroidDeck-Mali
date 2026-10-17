@@ -64,8 +64,8 @@ X 服务器内。
 | profile 与元数据 | `driver/profile/`、`driver/meta/` | GPU profile 与驱动包元数据 |
 | APK 构建 | `tools/release/build-mt8799.ps1` | Windows 下构建 APK |
 | 来宾脚本哈希 | `tools/release/runtime_inputs.py` | 修改 `tools/linuxfs/overlay/**` 后记录 `runtime-inputs.json` |
-| 呈现器 | 来宾 `/root/xpresent` | Xvfb 帧缓冲 → Wayland surface |
-| 窗口控制 | 来宾 `/root/xraise`、`/root/xhide` | 置顶/切换与隐藏/显示 Steam 界面 |
+| 呈现器 | `tools/xtools/xpresent.c`（来宾 `/root/xpresent`） | Xvfb 帧缓冲 → Wayland surface |
+| 窗口控制 | `tools/xtools/xraise.c`、`xhide.c`（来宾 `/root/xraise`、`/root/xhide`） | 置顶/切换与隐藏/显示 Steam 界面 |
 | 会话日志 | `files/logs/<session>/` | `session.log`、`wayland.log`、`xpresent.out` |
 
 ## 当前局限

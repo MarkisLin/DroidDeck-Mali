@@ -65,8 +65,8 @@ Build steps, patch details, validation method and the toolchain are documented i
 | Profile and metadata | `driver/profile/`, `driver/meta/` | GPU profile and package metadata |
 | App build | `tools/release/build-mt8799.ps1` | APK build (Windows) |
 | Guest-script hashes | `tools/release/runtime_inputs.py` | records `runtime-inputs.json` after editing `tools/linuxfs/overlay/**` |
-| Presenter | guest `/root/xpresent` | Xvfb framebuffer → Wayland surface |
-| Window control | guest `/root/xraise`, `/root/xhide` | raise/alt-tab and hide/show for the Steam UI |
+| Presenter | `tools/xtools/xpresent.c` (guest `/root/xpresent`) | Xvfb framebuffer → Wayland surface |
+| Window control | `tools/xtools/xraise.c`, `xhide.c` (guest `/root/xraise`, `/root/xhide`) | raise/alt-tab and hide/show for the Steam UI |
 | Session logs | `files/logs/<session>/` | `session.log`, `wayland.log`, `xpresent.out` |
 
 ## Current limitations
