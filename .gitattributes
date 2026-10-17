@@ -1,3 +1,9 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.patch text eol=lf
+*.diff text eol=lf
+*.sh text eol=lf
 tools/linuxfs/** text=auto eol=lf
 tools/mangoapp/** text=auto eol=lf
 tools/comet/LICENSE whitespace=-blank-at-eof
