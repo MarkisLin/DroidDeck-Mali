@@ -1,0 +1,4 @@
+standard    dev.hayash1.steamoslite       -
+pubg        com.tencent.ig               -pubg
+antutu      com.antutu.benchmark.full    -antutu
+ludashi     com.ludashi.benchmark        -ludashi

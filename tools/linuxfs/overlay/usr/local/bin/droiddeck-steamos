@@ -1,0 +1,87 @@
+#!/bin/bash
+# droiddeck-steamos -- SteamOS mode orchestration
+#  BL_STEAM_XVFB=1   : Xvfb + xpresent presentation (App's XvfbHost starts Xvfb on :7)
+#  BL_STEAM_GAME=... : launch this exe via Proton
+#  otherwise         : sway + software CEF Steam UI (original path)
+set -u
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root
+ST="${XDG_DATA_HOME:-$HOME/.local/share}/Steam"
+echo "== droiddeck-steamos $(date)"
+
+if [ "${BL_STEAM_XVFB:-0}" = 1 ]; then
+  DISP=:7
+  echo "   xvfb mode, display $DISP"
+  for i in $(seq 1 90); do
+    [ -S /tmp/.X11-unix/X7 ] && [ -f /tmp/xvfb-fb/Xvfb_screen0 ] && break
+    sleep 1
+  done
+  export DISPLAY=$DISP
+  export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
+  export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
+  export STEAM_RUNTIME=1
+  export LD_LIBRARY_PATH="$ST/steamrtarm64:$ST/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+  if [ -x /root/xpresent ]; then
+    XPRESENT_FB=/tmp/xvfb-fb/Xvfb_screen0 /root/xpresent >>/tmp/xpresent.out 2>&1 &
+    echo "   presenter started"
+  fi
+
+  # Minimal window management: hide the Steam UI while a game window is up, restore it afterwards.
+  if [ -x /usr/local/bin/xraise ] && [ -x /usr/local/bin/xhide ]; then
+    (
+      game_up=0
+      while :; do
+        sleep 2
+        if /usr/local/bin/xraise --game >/dev/null 2>&1; then
+          if [ "$game_up" = 0 ]; then
+            /usr/local/bin/xhide unmap >/dev/null 2>&1
+            game_up=1
+            echo "   game window up: steam UI hidden"
+          fi
+        elif [ "$game_up" = 1 ]; then
+          /usr/local/bin/xhide map >/dev/null 2>&1
+          game_up=0
+          echo "   game window gone: steam UI restored"
+        fi
+      done
+    ) &
+  fi
+
+  if [ -z "${BL_STEAM_GAME:-}" ]; then
+    echo "   launching gamepad UI"
+    started=0
+    for attempt in 1 2 3 4 5; do
+      echo "   steam attempt $attempt"
+      "$ST/steamrtarm64/steam" -gamepadui -steamdeck -steamos3 \
+        -cef-enable-debugging -devtools-port 22616 \
+        -cef-disable-gpu -cef-disable-gpu-sandbox \
+        -cef-disable-seccomp-sandbox -cef-disable-sandbox \
+        -cef-ozone-platform=x11 -language schinese >/tmp/steam-ui.out 2>&1 &
+      for i in $(seq 1 40); do
+        sleep 2
+        if pgrep -f steamwebhelper >/dev/null 2>&1; then started=1; break; fi
+      done
+      [ "$started" = 1 ] && break
+      echo "   steam did not show up, retrying"
+    done
+  fi
+  sleep 20
+
+  GAME="${BL_STEAM_GAME:-}"
+  if [ -n "$GAME" ]; then
+    echo "   launching game via proton: $GAME"
+    APPID="${BL_STEAM_APPID:-0}"
+    export STEAM_COMPAT_DATA_PATH="$ST/steamapps/compatdata/$APPID"
+    export STEAM_COMPAT_CLIENT_INSTALL_PATH="$ST"
+    PROTON="$ST/steamapps/common/Proton - Experimental (ARM64)/proton"
+    [ -x "$PROTON" ] || PROTON="$(ls -d "$ST"/steamapps/common/Proton*/proton 2>/dev/null | head -1)"
+    "$PROTON" run "$GAME" >>/tmp/proton-run.out 2>&1 &
+    echo "   proton started (log /tmp/proton-run.out)"
+  fi
+
+  echo "   running (hold)"
+  while :; do sleep 30; done
+fi
+
+exec /usr/local/bin/droiddeck-session "$@"
