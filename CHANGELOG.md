@@ -1,4 +1,15 @@
 # Changelog
+## v0.4.3-sl1 (2026-10-18)
+
+Proton failures become diagnosable.
+
+* `droiddeck-proton-run` captures Proton's stderr into `/tmp/droiddeck-proton-<AppID>.log`; the script
+  ships in the APK and is staged at session start, so an in-place update is enough;
+* analysis of the L4D2 (AppID 550) launch-then-exit path added to `docs/PROTON-32BIT.md`;
+* known limitations: L4D2 not playable yet (32-bit support to verify); Silksong in-game input still
+  unresolved.
+
+Update in place: same package id and signature, `versionCode 16`.
 ## v0.4.2-sl1 (2026-10-18)
 
 Self-healing update: runtime pieces now travel with the APK, so a fresh install starts SteamOS
