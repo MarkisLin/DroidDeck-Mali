@@ -84,7 +84,10 @@ RELEASE    { buffer_id }                                           host → gues
   `dlopen("libandroid.so")` + 单参数签名调用。
 - 宿主已能对 AHB 加锁写像素（`AHardwareBuffer_lock` + 填绿色成功）；来宾对同一 fd `mmap`
   返回 `ENODEV`（gralloc dma-buf 不暴露 mmap），因此**像素只能由宿主侧读取/呈现**，来宾不回读。
-  下一步：合成器用 `vkp_image_from_dmabuf` 导入该 AHB 并作为调试层绘制。
+- **端到端已跑通**：来宾 `ALLOC` → 宿主分配 AHB 并写像素 → `SessionActivity` 通过
+  `SurfaceControl.Transaction#setBuffer` 把该 AHB 作为探针层显示，屏幕上出现绿色矩形
+  （`gpu probe layer shown 1280x720`）。下一步把 CPU 填色换成厂商 GL 渲染，并把探针层换成
+  合成器导入。
 
 **M2 GLES 子集（3–4 周）**
 - CEF GPU 进程所需的最小调用集：shader 编译/链接、VAO/VBO、纹理、FBO、`glBlitFramebuffer`；
