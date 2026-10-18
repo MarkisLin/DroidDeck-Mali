@@ -103,21 +103,26 @@ RELEASE    { buffer_id }                                           host → gues
 通道。实测 `swap 1..3 ok`，屏幕最终显示请求的绿色，证明"来宾 EGL 调用 → 宿主 GPU 渲染 → 上屏"
 这条 M2 数据面成立。下一步是补齐 CEF 需要的 shader/纹理/FBO 子集，并让 CEF 的 GPU 进程加载该桩。
 
-**M3 拦截点已定位（2026-10-18）**：CEF 的 `steamwebhelper --type=gpu-process` 实际映射的是
+**M3 结论（2026-10-18）：CEF 侧无法接入，已证明是硬阻塞。**
+
+证据链（连续 4 轮实验）：
+
+1. Steam 每次启动都会**还原**自己的文件：`steamrtarm64/libEGL.so`、`libGLESv2.so` 以及
+   `steamwebhelper` 二进制（替换后重启即恢复原大小/时间戳）→ 文件替换不可持续。
+2. Steam 的 CEF 参数白名单会丢弃 `-cef-use-gl` / `-cef-use-angle`；用 `execve`/`posix_spawn`
+   拦截可以给 helper **追加** `--use-gl=egl` 等参数（已实测 browser/utility 进程命令行里出现）。
+3. 但 **GPU 进程的命令行由 Chromium 自己重建**，注入的开关被丢掉：
+   `type=browser use-gl=1` vs `type=gpu-process use-gl=0`。GPU 进程是 zygote fork 出来的，
+   不经过 `execve`，无法用进程钩子注入。
+4. GPU 进程（唯一会调用 EGL 的进程）在 X11 无 DRI3 的环境下因此完全不初始化 GL：
+   我们的 `libEGL.so` 被加载进 6 个 CEF 进程（constructor 日志可证），但**一次 EGL 调用都没有**。
+5. 追加 `--ozone-platform=wayland` 同样被 GPU 进程丢弃，结果不变。
+
+结论：**不改 Steam/CEF 的代码或不用 root 的前提下，无法让 CEF 使用我们的 GL 实现。**
+已完成的 M0–M2（通道、AHB 呈现、EGL 桩）仍然可用，可作为未来"自建渲染进程"或宿主代理方案的基础；
+CEF 硬件化本身需要 Valve 侧支持，或解锁设备以取得 DRM render node。
 
 ```
-~/.local/share/Steam/steamrtarm64/libEGL.so      ← Steam 自带 ANGLE
-~/.local/share/Steam/steamrtarm64/libGLESv2.so   ← Steam 自带 ANGLE
-/usr/lib/libEGL.so.1.1.0                         ← Mesa（系统）
-```
-
-**替换文件不可持续**：实测把 `steamrtarm64/libEGL.so` 换成桩后，Steam 在启动时校验并**还原**了
-原文件（大小 283472、时间戳回到发布日），所以不能在 Steam 目录里打补丁。
-改用只作用于 helper 的 `LD_PRELOAD`：给 `steamrtarm64/steamwebhelper.sh` 增加
-`export LD_PRELOAD=/root/gpustub/libEGL.so:/root/gpustub/libGLESv2.so:/root/gpustub/libgpustubcore.so`
-（脚本同样可能被更新覆盖，需要可重放的补丁）。桩已按 `libEGL.so` / `libGLESv2.so` 两个 SONAME
-编译，dlopen 会复用已加载的同名库；加载验证（GPU 进程 maps / helper 日志）在下一轮完成。
-
 **合成器导入的结论（2026-10-18）**：`vkp_image_from_dmabuf` 无法导入这个 AHB 的 dma-buf fd
 （4 种 DRM 格式 × 1 个支持的 modifier 全部失败）。这与合成器源码一致：客户端 AHB 走的是
 `banner-ahb` 协议 + **SurfaceControl 层**（`ahb_swapchain.c` 用
