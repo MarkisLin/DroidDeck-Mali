@@ -89,8 +89,13 @@ RELEASE    { buffer_id }                                           host → gues
   证据：`gl renderer=Mali-G925-Immortalis MC12 status=0x8cd5`、屏幕上出现品红矩形
   （`rendered 1280x720 on the GPU`）。关键点：必须用 `eglGetNativeClientBufferANDROID` 包装 AHB，
   直接强转会导致 `eglCreateImageKHR` 返回 `EGL_BAD_PARAMETER`。
-- 剩余：把 CPU 上屏探针换成合成器导入（`vkp_image_from_dmabuf`），加入 `PRESENT` 握手让来宾
-  驱动帧提交；然后进入 M2（GLES 子集桩）。
+- 剩余：把 CPU 上屏探针换成合成器导入（`vkp_image_from_dmabuf`）；然后进入 M2（GLES 子集桩）。
+
+**PRESENT 已实现（v1）**：`PRES`（0x50524553）= 渲染并呈现一帧，宿主回帧号；`DONE`（0x444F4E45）
+关闭会话。一帧的路径：`read PRES → glClear(颜色) → glFinish → SurfaceControl 更新`。
+实测连续 4 帧 R/G/B/M 全部成功（`present 1..4 ack=1..4`），屏幕最终显示品红。
+注意：AHB 的 `EGLImage`/texture/FBO 必须**按 buffer 缓存**，每帧重复创建会在第二帧卡死；
+`nativeTakeBuffer` 取走 buffer 后仍要保留引用供渲染，否则下一帧判空退出。
 
 **M2 GLES 子集（3–4 周）**
 - CEF GPU 进程所需的最小调用集：shader 编译/链接、VAO/VBO、纹理、FBO、`glBlitFramebuffer`；
