@@ -97,6 +97,13 @@ RELEASE    { buffer_id }                                           host → gues
 注意：AHB 的 `EGLImage`/texture/FBO 必须**按 buffer 缓存**，每帧重复创建会在第二帧卡死；
 `nativeTakeBuffer` 取走 buffer 后仍要保留引用供渲染，否则下一帧判空退出。
 
+**合成器导入的结论（2026-10-18）**：`vkp_image_from_dmabuf` 无法导入这个 AHB 的 dma-buf fd
+（4 种 DRM 格式 × 1 个支持的 modifier 全部失败）。这与合成器源码一致：客户端 AHB 走的是
+`banner-ahb` 协议 + **SurfaceControl 层**（`ahb_swapchain.c` 用
+`AHardwareBuffer_recvHandleFromUnixSocket` 收句柄，`layer` 日志里"gralloc buffers: can go on the
+display layer without a copy"），而不是 Vulkan 纹理导入。因此通道的呈现路径确定为
+**SurfaceControl 层**（已跑通），Vulkan 合成器只负责 Xvfb/CEF 的 wl_shm 内容。
+
 **M2 GLES 子集（3–4 周）**
 - CEF GPU 进程所需的最小调用集：shader 编译/链接、VAO/VBO、纹理、FBO、`glBlitFramebuffer`；
 - 验收：CEF 的 GPU 进程能用桩初始化（`cef_log.txt` 无 DRI3 相关失败），UI 出现且非黑屏。
