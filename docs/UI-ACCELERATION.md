@@ -78,6 +78,10 @@ RELEASE    { buffer_id }                                           host → gues
 - 来宾最小 EGL 桩：`eglGetDisplay/eglInitialize/eglCreateContext/eglMakeCurrent/eglCreateWindowSurface`；
 - `glClear` + `glDrawArrays` 转发到宿主厂商 GL；
 - 验收：来宾调用即宿主渲染出颜色，`PRESENT` 后合成器显示该 buffer（先全屏一块纯色）。
+- **状态：传输层已完成**：宿主 `AHardwareBuffer_allocate` 成功，fd 通过 `SCM_RIGHTS` 交给来宾
+  （`alloc: status=0 1280x720 stride=1280 format=1`）。注意本机 `AHardwareBuffer_getNativeHandle`
+  的 ABI 是**单参数返回 handle 指针**（不是 NDK 文档里的 `int (buf, &handle)`），需用
+  `dlopen("libandroid.so")` + 单参数签名调用。渲染与合成器导入待做。
 
 **M2 GLES 子集（3–4 周）**
 - CEF GPU 进程所需的最小调用集：shader 编译/链接、VAO/VBO、纹理、FBO、`glBlitFramebuffer`；
