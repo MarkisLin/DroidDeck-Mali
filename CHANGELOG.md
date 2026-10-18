@@ -1,4 +1,20 @@
 # Changelog
+## v0.4.2-sl1 (2026-10-18)
+
+Self-healing update: runtime pieces now travel with the APK, so a fresh install starts SteamOS
+without a runtime-bundle update.
+
+Application:
+
+* `Xvfb`, `xpresent`, the session scripts and `libgpuhook.so` ship as APK assets and are staged into
+  the Linux environment when a session starts; `usr/share/X11/xkb` is added only when missing;
+* the imported PanVK driver is selected automatically when no driver was chosen yet;
+* imported drivers keep `libvulkan_panfrost.so` and `icd.json` points at the written file;
+* GPU detection accepts older imports through `meta.json`;
+* games installed during a session are mapped to `droiddeck-proton-arm64` within about ten seconds;
+* CEF stays pinned to the two fastest cores (`BL_CPU_MASK=0xc0`).
+
+Update in place: same package id and signature, `versionCode 15`; data and runtime are preserved.
 ## v0.4.1-sl1 (2026-10-18)
 
 Follow-up release: display-pipeline robustness and a CPU-affinity optimisation.
