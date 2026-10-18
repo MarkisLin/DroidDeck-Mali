@@ -81,7 +81,10 @@ RELEASE    { buffer_id }                                           host → gues
 - **状态：传输层已完成**：宿主 `AHardwareBuffer_allocate` 成功，fd 通过 `SCM_RIGHTS` 交给来宾
   （`alloc: status=0 1280x720 stride=1280 format=1`）。注意本机 `AHardwareBuffer_getNativeHandle`
   的 ABI 是**单参数返回 handle 指针**（不是 NDK 文档里的 `int (buf, &handle)`），需用
-  `dlopen("libandroid.so")` + 单参数签名调用。渲染与合成器导入待做。
+  `dlopen("libandroid.so")` + 单参数签名调用。
+- 宿主已能对 AHB 加锁写像素（`AHardwareBuffer_lock` + 填绿色成功）；来宾对同一 fd `mmap`
+  返回 `ENODEV`（gralloc dma-buf 不暴露 mmap），因此**像素只能由宿主侧读取/呈现**，来宾不回读。
+  下一步：合成器用 `vkp_image_from_dmabuf` 导入该 AHB 并作为调试层绘制。
 
 **M2 GLES 子集（3–4 周）**
 - CEF GPU 进程所需的最小调用集：shader 编译/链接、VAO/VBO、纹理、FBO、`glBlitFramebuffer`；
