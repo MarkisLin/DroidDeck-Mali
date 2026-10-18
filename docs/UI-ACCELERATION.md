@@ -103,6 +103,18 @@ RELEASE    { buffer_id }                                           host → gues
 通道。实测 `swap 1..3 ok`，屏幕最终显示请求的绿色，证明"来宾 EGL 调用 → 宿主 GPU 渲染 → 上屏"
 这条 M2 数据面成立。下一步是补齐 CEF 需要的 shader/纹理/FBO 子集，并让 CEF 的 GPU 进程加载该桩。
 
+**M3 拦截点已定位（2026-10-18）**：CEF 的 `steamwebhelper --type=gpu-process` 实际映射的是
+
+```
+~/.local/share/Steam/steamrtarm64/libEGL.so      ← Steam 自带 ANGLE
+~/.local/share/Steam/steamrtarm64/libGLESv2.so   ← Steam 自带 ANGLE
+/usr/lib/libEGL.so.1.1.0                         ← Mesa（系统）
+```
+
+所以桩必须以 `libEGL.so` / `libGLESv2.so` 两个 SONAME 提供，才能被 CEF 的 GPU 进程选中；
+最小侵入的做法是 `LD_PRELOAD` 一个 SONAME 匹配的桩（dlopen 会复用已加载的同名库），
+其次是在 Steam 目录里替换文件（Steam 更新会覆盖，需可回滚）。
+
 **合成器导入的结论（2026-10-18）**：`vkp_image_from_dmabuf` 无法导入这个 AHB 的 dma-buf fd
 （4 种 DRM 格式 × 1 个支持的 modifier 全部失败）。这与合成器源码一致：客户端 AHB 走的是
 `banner-ahb` 协议 + **SurfaceControl 层**（`ahb_swapchain.c` 用
