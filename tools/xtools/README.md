@@ -11,6 +11,7 @@ Small X11 programs used by the Xvfb display path. They are cross-built for the L
 | `xhide` | `map` / `unmap` the Steam UI window while a game window is up. |
 | `xwindows` | Lists the windows on the display (debugging). |
 | `xwin` | Prints the focused/active window (debugging). |
+| `dri3probe` | Lists the X extensions the display offers (DRI3/DRI2/PRESENT/RANDR/MIT-SHM); use it to check whether a display can hand out GPU buffers. |
 
 ## Build
 
