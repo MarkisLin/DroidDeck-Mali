@@ -141,6 +141,27 @@ GPU 进程由 zygote fork 出来，不经过 `execve`，进程钩子无法注入
 
 ---
 
+## 5.1 对外部方案文档的验证（2026-10-18）
+
+一份流传的调研文档（`Steam_UI_GPU加速_GitHub调研与解决方案.docx`）提出了两条我们没试过的线索，
+都在本设备上验证过：
+
+**线索 A：raw dma-buf 的 X11 WSI（funnymdzz/mesa 的 PanVK kbase 变体，`WSI_X11_TERMUX=1` /
+`PANVK_KBASE_DRI3=raw`），配合 Termux:X11 / Winlator 的私有 DRI3 协议。**
+
+- 卡点 1：该方案用 `/dev/dma_heap/*` 分配 dma-buf。实测本机 `/dev/dma_heap/{system,mtk_mm,...}`
+  是 `0444`，应用 uid **只能读、不能写**，分配 ioctl 无法执行；
+- 卡点 2：还需要一个实现私有 DRI3 协议的 X Server（Termux:X11 是 Android 应用，不在我们的会话里）；
+- 卡点 3：即便两者齐备，CEF 仍不初始化 GL（见下条），所以只会让"别的 GL 程序"用上 GPU，而不是 Steam UI。
+- 可能的替代：用我们已能分配的 `AHardwareBuffer`（gralloc dma-buf）代替 dma-heap，但同样受卡点 2、3 限制。
+
+**线索 B：`-cef-force-glx`（steam-for-linux issue #12694 提到的恢复硬件加速的开关）。**
+
+- 实测：把 `-cef-force-glx` 传给 Steam 后，**没有任何 CEF 进程的命令行出现它**
+  （browser / utility / gpu-process 全部 `force-glx=0`），说明同样被 Steam 的白名单过滤；
+- 因此它无法成为控制 CEF 的后门。
+
+两条线索都不改变第 3 节的结论；文档自己也注明这些是"未在本设备验证的外部方案"。
 ## 6. 出路与各自前提
 
 | 方向 | 前提 | 代价 |
