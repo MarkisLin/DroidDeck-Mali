@@ -74,6 +74,8 @@ X 服务器内。
 
 * **性能偏低**：Steam 界面约 13–16 fps，游戏在这条路径上尚未做性能优化，帧生成与拷贝路径仍有
   优化空间。
+* Steam UI 仍是软件光栅；为什么无法把硬件 GL 接进 Steam 的 CEF，见
+  [docs/UI-ACCELERATION-POSTMORTEM.md](docs/UI-ACCELERATION-POSTMORTEM.md)。
 * Steam 的 CEF 走软件光栅，是界面帧率偏低的主要原因。
 * `p8-common-gates` 在近期构建上出现 SIGSEGV，尚未定位。
 * 没有 bionic 构建，PanProbe 无法在 Android 进程内加载该驱动。

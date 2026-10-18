@@ -75,6 +75,8 @@ Build steps, patch details, validation method and the toolchain are documented i
 
 * **Performance is low**: the Steam UI runs at roughly 13–16 fps, and games are not yet optimised for
   this path; frame pacing and the copy path still have headroom.
+* The Steam UI stays on software rasterisation; [docs/UI-ACCELERATION-POSTMORTEM.md](docs/UI-ACCELERATION-POSTMORTEM.md)
+  explains why hardware GL cannot be wired into the CEF that Steam runs on this device.
 * Steam's CEF is software-rasterised, which is the main cause of the low UI frame rate.
 * `p8-common-gates` hits SIGSEGV on recent builds; not yet root-caused.
 * No bionic build, so PanProbe cannot load the driver inside an Android process.
