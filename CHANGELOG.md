@@ -1,4 +1,27 @@
 # Changelog
+## v0.4.1-sl1 (2026-10-18)
+
+Follow-up release: display-pipeline robustness and a CPU-affinity optimisation.
+
+Application:
+
+* **imported PanVK drivers keep their real library name.** The installer used to rename
+  `libvulkan_panfrost.so` to `libvulkan_freedreno.so`; `icd.json` now points at the file that was
+  actually written, so the runtime and the UI agree on what was imported;
+* **GPU status also recognises drivers imported before this fix.** Detection now accepts a
+  `libvulkan_panfrost.so` *or* a `meta.json` that names PanVK / panfrost, so a device that imported
+  the driver with the old naming shows "supported" instead of "unsupported";
+* **CEF is pinned to the two fastest cores by default** (`BL_CPU_MASK=0xc0`). Steam launches its
+  helper with `taskset 0x7c`, which mixes little cores with big cores and leaves the fastest core
+  unused; the session rewrites that mask at exec time. Measured on the K Pad with a fixed scroll
+  workload: 12.5–12.8 fps before, 15.4 fps after (+15–20%), with no change to resolution or image
+  quality. `BL_CPU_MASK` overrides the default.
+
+Runtime requirements:
+
+* the display stack needs `Xvfb` and the project's `xpresent` presenter. Devices whose runtime
+  bundle predates this release must install both, otherwise Steam reports
+  `Unable to open X11 display` and the session never presents a frame.
 
 ## v0.4.0-sl1 (2026-10-17)
 
