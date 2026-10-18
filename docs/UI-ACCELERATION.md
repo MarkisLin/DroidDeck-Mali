@@ -97,6 +97,12 @@ RELEASE    { buffer_id }                                           host → gues
 注意：AHB 的 `EGLImage`/texture/FBO 必须**按 buffer 缓存**，每帧重复创建会在第二帧卡死；
 `nativeTakeBuffer` 取走 buffer 后仍要保留引用供渲染，否则下一帧判空退出。
 
+**M2 第一步已完成（2026-10-18）**：来宾 `tools/gpustub/guest_egl.c` 提供最小 EGL/GLES2 桩
+（`eglGetDisplay/Initialize/ChooseConfig/CreateContext/CreateWindowSurface/MakeCurrent/SwapBuffers`
++ `glClearColor/glClear/glFinish/glViewport/glGetString`），把 `ALLOC` 与 `PRES`（携带 RGB）序列化到
+通道。实测 `swap 1..3 ok`，屏幕最终显示请求的绿色，证明"来宾 EGL 调用 → 宿主 GPU 渲染 → 上屏"
+这条 M2 数据面成立。下一步是补齐 CEF 需要的 shader/纹理/FBO 子集，并让 CEF 的 GPU 进程加载该桩。
+
 **合成器导入的结论（2026-10-18）**：`vkp_image_from_dmabuf` 无法导入这个 AHB 的 dma-buf fd
 （4 种 DRM 格式 × 1 个支持的 modifier 全部失败）。这与合成器源码一致：客户端 AHB 走的是
 `banner-ahb` 协议 + **SurfaceControl 层**（`ahb_swapchain.c` 用
