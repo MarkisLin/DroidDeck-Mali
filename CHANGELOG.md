@@ -1,4 +1,16 @@
 # Changelog
+## v0.4.4-sl1 (2026-10-18)
+
+Device compatibility and exit recovery.
+
+* the session starts its own Xvfb when X is unreachable, so devices whose Android mounts a global
+  `/tmp` no longer end up with a black or white screen instead of the Steam UI;
+* an explicit `rootfs/tmp -> /tmp` bind keeps the X socket path consistent;
+* `xhide map` forces a repaint (`XClearArea` with exposures) after restoring the Steam UI, fixing the
+  white screen left behind when a game such as Hades exits;
+* the `libxhide.so` asset is now actually shipped, so the fixed binary is installed.
+
+Update in place: same package id and signature, `versionCode 17`.
 ## v0.4.3-sl1 (2026-10-18)
 
 Proton failures become diagnosable.

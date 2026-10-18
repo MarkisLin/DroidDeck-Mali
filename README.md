@@ -18,7 +18,7 @@ pan_arch 13, kbase CSF UAPI 1.30), Android 16, locked bootloader, no root.
 | What | Where |
 |---|---|
 | **Source** | this repository (`git clone`) |
-| **APK** | [Releases](../../releases) → `DroidDeck-KPad-0.4.3-sl1-debug.apk` |
+| **APK** | [Releases](../../releases) → `DroidDeck-KPad-0.4.4-sl1-debug.apk` |
 | **Driver** | [Releases](../../releases) → `DroidDeck-PanVK-G925-main186-p1.zip` |
 
 The APK is debug-signed. If a build with a different signature is installed, uninstall it first. The
