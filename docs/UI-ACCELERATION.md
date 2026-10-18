@@ -111,9 +111,12 @@ RELEASE    { buffer_id }                                           host → gues
 /usr/lib/libEGL.so.1.1.0                         ← Mesa（系统）
 ```
 
-所以桩必须以 `libEGL.so` / `libGLESv2.so` 两个 SONAME 提供，才能被 CEF 的 GPU 进程选中；
-最小侵入的做法是 `LD_PRELOAD` 一个 SONAME 匹配的桩（dlopen 会复用已加载的同名库），
-其次是在 Steam 目录里替换文件（Steam 更新会覆盖，需可回滚）。
+**替换文件不可持续**：实测把 `steamrtarm64/libEGL.so` 换成桩后，Steam 在启动时校验并**还原**了
+原文件（大小 283472、时间戳回到发布日），所以不能在 Steam 目录里打补丁。
+改用只作用于 helper 的 `LD_PRELOAD`：给 `steamrtarm64/steamwebhelper.sh` 增加
+`export LD_PRELOAD=/root/gpustub/libEGL.so:/root/gpustub/libGLESv2.so:/root/gpustub/libgpustubcore.so`
+（脚本同样可能被更新覆盖，需要可重放的补丁）。桩已按 `libEGL.so` / `libGLESv2.so` 两个 SONAME
+编译，dlopen 会复用已加载的同名库；加载验证（GPU 进程 maps / helper 日志）在下一轮完成。
 
 **合成器导入的结论（2026-10-18）**：`vkp_image_from_dmabuf` 无法导入这个 AHB 的 dma-buf fd
 （4 种 DRM 格式 × 1 个支持的 modifier 全部失败）。这与合成器源码一致：客户端 AHB 走的是
