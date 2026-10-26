@@ -252,6 +252,27 @@ class SessionService : Service() {
         }
     }
 
+    /**
+     * True when the selected Vulkan driver is the kbase one.
+     *
+     * The driver bundles carry a meta.json with `guestBackend: "mali-kbase"`; that is the
+     * marker for a guest with no DRM render node, where only the Xvfb + software-CEF path
+     * can start Steam.
+     */
+    private fun kbaseDriverSelected(): Boolean {
+        val id = dev.hayash1.steamoslite.session.SessionPrefs.linuxDriver(this)
+        if (id.isBlank()) return false
+        return try {
+            val meta = File(File(filesDir, "linux_vulkan_drivers"), "$id/meta.json")
+            if (!meta.isFile) return false
+            val text = meta.readText()
+            text.contains("\"guestBackend\"") && text.contains("mali-kbase")
+        } catch (e: Exception) {
+            Log.w(TAG, "could not read the selected driver's meta.json", e)
+            false
+        }
+    }
+
     private fun extraEnv(): List<String> {
         if (File(Environment.getExternalStorageDirectory(), LEGACY_ENV_SWITCH).isFile) {
             Log.w(TAG, "ignoring $LEGACY_ENV_SWITCH: any app with storage access can write there; " +
@@ -290,7 +311,13 @@ class SessionService : Service() {
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
-        if (extraEnv().any { it == "BL_STEAM_XVFB=1" }) {
+        // A kbase guest has no DRM render node and no hardware GL, so the only path
+        // that works there is the software-CEF Xvfb one. Decide it from the selected
+        // driver instead of requiring droiddeck-env to carry BL_STEAM_XVFB=1: the env
+        // file has been lost more than once and the session then fell back to gamescope,
+        // where Steam asserts in vgui2 and never comes up.
+        val autoXvfb = !extraEnv().any { it.startsWith("BL_STEAM_XVFB=") } && kbaseDriverSelected()
+        if (autoXvfb || extraEnv().any { it == "BL_STEAM_XVFB=1" }) {
             WindowTools.stage(this, root)
             XvfbHost.start(this)
         }
@@ -563,6 +590,14 @@ class SessionService : Service() {
             dev.hayash1.steamoslite.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         extraEnv().forEach { guest.add(it) }
+        // addClientEnvironment runs separately from runSession, so decide again here:
+        // a kbase driver means the guest has no DRM node and only the Xvfb + software-CEF
+        // path can start Steam, whether or not droiddeck-env exists.
+        if (!extraEnv().any { it.startsWith("BL_STEAM_XVFB=") } && kbaseDriverSelected()) {
+            if (guest.none { it == "BL_STEAM_XVFB=1" }) guest.add("BL_STEAM_XVFB=1")
+            if (guest.none { it == "BL_STEAM_SOFT_CEF=1" }) guest.add("BL_STEAM_SOFT_CEF=1")
+            if (guest.none { it == "BL_NO_GAMESCOPE=1" }) guest.add("BL_NO_GAMESCOPE=1")
+        }
         dev.hayash1.steamoslite.agent.AgentEnv.beginSession(this).forEach { guest.add(it) }
         val clientPinned = steamHere && SessionPrefs.clientCpusOverride(this)
         if (clientPinned) {
