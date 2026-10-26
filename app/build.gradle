@@ -132,6 +132,7 @@ android {
         release {
             minifyEnabled false
             signingConfig signingConfigs.testkey
+            debuggable true
         }
     }
 

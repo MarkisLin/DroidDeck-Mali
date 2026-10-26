@@ -262,15 +262,51 @@ class SessionService : Service() {
     private fun kbaseDriverSelected(): Boolean {
         val id = dev.hayash1.steamoslite.session.SessionPrefs.linuxDriver(this)
         if (id.isBlank()) return false
-        return try {
-            val meta = File(File(filesDir, "linux_vulkan_drivers"), "$id/meta.json")
-            if (!meta.isFile) return false
-            val text = meta.readText()
-            text.contains("\"guestBackend\"") && text.contains("mali-kbase")
+        val dir = File(File(filesDir, "linux_vulkan_drivers"), id)
+        try {
+            // A bundle imported from a zip keeps only schemaVersion 1, which carries no
+            // guestBackend, so the library itself is the reliable evidence.
+            val meta = File(dir, "meta.json")
+            if (meta.isFile && meta.readText().contains("mali-kbase")) return true
+            val icd = File(dir, "icd.json")
+            if (icd.isFile && icd.readText().contains("mali-kbase")) return true
+            return libraryLooksKbase(File(dir, "libvulkan_panfrost.so"))
         } catch (e: Exception) {
-            Log.w(TAG, "could not read the selected driver's meta.json", e)
+            Log.w(TAG, "could not inspect the selected driver", e)
+            return false
+        }
+    }
+
+    /** True when the shared object is a PanVK/kbase build (scanned in chunks, not loaded). */
+    private fun libraryLooksKbase(file: File): Boolean {
+        if (!file.isFile) return false
+        val needle = "kbase".toByteArray(Charsets.US_ASCII)
+        val buf = ByteArray(1 shl 20)
+        var keep = 0
+        return try {
+            file.inputStream().use { input ->
+                while (true) {
+                    val read = input.read(buf, keep, buf.size - keep)
+                    if (read <= 0) break
+                    val len = keep + read
+                    if (indexOfBytes(buf, len, needle) >= 0) return true
+                    keep = minOf(needle.size - 1, len)
+                    System.arraycopy(buf, len - keep, buf, 0, keep)
+                }
+            }
+            false
+        } catch (e: Exception) {
+            Log.w(TAG, "could not scan " + file.name, e)
             false
         }
+    }
+
+    private fun indexOfBytes(hay: ByteArray, hayLen: Int, needle: ByteArray): Int {
+        outer@ for (i in 0..hayLen - needle.size) {
+            for (j in needle.indices) if (hay[i + j] != needle[j]) continue@outer
+            return i
+        }
+        return -1
     }
 
     private fun extraEnv(): List<String> {
