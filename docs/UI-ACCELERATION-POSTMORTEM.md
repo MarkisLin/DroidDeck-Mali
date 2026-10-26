@@ -1,5 +1,7 @@
 # 为什么 Steam UI 的软件光栅换不掉：一次完整排查复盘
 
+> English version: [UI-ACCELERATION-POSTMORTEM.en.md](UI-ACCELERATION-POSTMORTEM.en.md)
+
 本文记录"把 Steam UI 从 CPU 光栅换成 GPU 渲染"这个目标为什么会卡住，以及中间每一步的前因后果。
 结论先行：**不是驱动不行，也不是缺方案，而是我们拿不到"让 Steam 的 CEF 去调用 GL"的控制权。**
 
